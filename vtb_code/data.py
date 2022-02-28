@@ -52,3 +52,26 @@ class CrossDataset(torch.utils.data.Dataset):
 
 def paired_collate_fn(batch):
     return [coles_collate_fn(c) for c in zip(*batch)]
+
+
+class DropDuplicate:
+    def __init__(self, col_check, col_new_cnt=None, keep='first'):
+        super().__init__()
+
+        self.col_check = col_check
+        self.col_new_cnt = col_new_cnt
+        if keep != 'first':
+            raise NotImplementedError()
+
+    def __call__(self, x):
+        idx, new_cnt = self.get_idx(x[self.col_check])
+        new_x = {k: v[idx] for k, v in x.items()}
+        if self.col_new_cnt is not None:
+            new_x[self.col_new_cnt] = torch.from_numpy(new_cnt)
+        return new_x
+
+    def get_idx(self, x):
+        diff = np.diff(x, prepend=x[0] - 1)
+        new_ix = np.where(diff != 0)[0]
+        new_cnt = np.diff(new_ix, append=len(x))
+        return new_ix, new_cnt
