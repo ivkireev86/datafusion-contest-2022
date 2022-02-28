@@ -1,0 +1,10 @@
+main                   : Data loading...
+main                   : Loaded 17581 pairs, 19821910 transactions, 126752515 clicks
+main                   : Prepared 4 bins for trx and clicks
+main                   : Saved data for fold 0: 2931 pairs, 2572365 transactions, 15124893 clicks
+main                   : Saved data for fold 1: 2930 pairs, 2583449 transactions, 16898083 clicks
+main                   : Saved data for fold 2: 2930 pairs, 2579526 transactions, 16838662 clicks
+main                   : Saved data for fold 3: 2930 pairs, 2568464 transactions, 15739400 clicks
+main                   : Saved data for fold 4: 2930 pairs, 2576772 transactions, 15029891 clicks
+main                   : Saved data for fold 5: 2930 pairs, 2559992 transactions, 15165618 clicks
+main                   : All splits saved

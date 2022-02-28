@@ -1,0 +1,35 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+pytest = "*"
+pylint = "*"
+jupyter = "*"
+coverage = "*"
+twine = "*"
+
+[packages]
+scikit-learn = "*"
+lightgbm = "*"
+xgboost = "*"
+
+matplotlib = "*"
+seaborn = "*"
+
+pyarrow = "*"
+scipy = "*"
+numpy = "*"
+pandas = "*"
+pyspark = "*"
+
+pyhocon = "*"
+tqdm = "*"
+
+torch = "*"
+tensorboard = "*"
+pytorch-lightning = "*"
+
+[requires]
+python_version = "3.8"
