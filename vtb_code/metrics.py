@@ -70,13 +70,11 @@ class ValidationCallback(pl.Callback):
         with torch.no_grad():
             z_trx = []
             for ((x_trx, _),) in self.v_trx:
-                z_trx.append(torch.nn.functional.normalize(
-                    pl_module.seq_encoder_trx(x_trx.to(self.device)), dim=1))
+                z_trx.append(pl_module.seq_encoder_trx(x_trx.to(self.device)))
             z_trx = torch.cat(z_trx, dim=0)
             z_click = []
             for ((x_click, _),) in self.v_click:
-                z_click.append(torch.nn.functional.normalize(
-                    pl_module.seq_encoder_click(x_click.to(self.device)), dim=1))
+                z_click.append(pl_module.seq_encoder_click(x_click.to(self.device)))
             z_click = torch.cat(z_click, dim=0)
 
             T = z_trx.size(0)
