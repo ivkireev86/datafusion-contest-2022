@@ -6,6 +6,7 @@ import torch
 
 from dltranz.data_load import padded_collate_wo_target
 from dltranz.data_load.data_module.coles_data_module import coles_collate_fn
+from dltranz.metric_learn.dataset.split_strategy import AbsSplit
 
 
 class PairedDataset(torch.utils.data.Dataset):
@@ -24,6 +25,25 @@ class PairedDataset(torch.utils.data.Dataset):
         ids = self.pairs[item]
         return tuple([[a(d[i]) for _ in range(self.n_sample)]
                       for i, d, a in zip(ids, self.data, self.augmentations)])
+
+
+class InferenceSplittingDataset(torch.utils.data.Dataset):
+    def __init__(self, ids, data, augmentations, splitter: AbsSplit):
+        super().__init__()
+
+        self.ids = ids
+        self.data = data
+        self.augmentations = augmentations
+        self.splitter = splitter
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, item):
+        _id = self.ids[item]
+        rec = self.data[_id]
+        dt_ixs = self.splitter.split(rec['event_time'])
+        return [self.augmentations({k: v[ix] for k, v in rec.items()}) for ix in dt_ixs],
 
 
 class CrossDataset(torch.utils.data.Dataset):
@@ -52,6 +72,10 @@ class CrossDataset(torch.utils.data.Dataset):
 
 def paired_collate_fn(batch):
     return [coles_collate_fn(c) for c in zip(*batch)]
+
+
+def paired_collate_fn_flat(batch):
+    return [padded_collate_wo_target(c) for c in zip(*batch)]
 
 
 class DropDuplicate:
