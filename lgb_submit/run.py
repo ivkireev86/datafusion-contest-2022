@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import lightgbm as lgb
 import gc
-from tqdm import tqdm
 
 
 def click_types(df):
@@ -75,7 +74,7 @@ def inference(df_trx, df_click, model, model_features, batch_size=100):
     num_of_batches = int((len(list_of_bank))/batch_size)+1
     submission_ready = []
 
-    for i in tqdm(range(num_of_batches)):
+    for i in range(num_of_batches):
         bank_ids = list_of_bank[(i*batch_size):((i+1)*batch_size)]
         if len(bank_ids) != 0:
             part_of_submit = submission[submission['bank'].isin(bank_ids)].explode('rtk')
