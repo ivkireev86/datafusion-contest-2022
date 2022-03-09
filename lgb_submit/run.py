@@ -17,7 +17,7 @@ def click_pivot(df):
                             columns=['cat_id'],
                             aggfunc=['count']).fillna(0)
     clickstream_embed.columns = [f'{str(i[0])}-{str(i[2])}' for i in clickstream_embed.columns]
-    clickstream_embed.loc['0'] = np.empty(len(clickstream_embed.columns))
+    clickstream_embed.loc[0] = np.empty(len(clickstream_embed.columns))
 
     dtype_clickstream = list()
     for x in clickstream_embed.dtypes.tolist():
