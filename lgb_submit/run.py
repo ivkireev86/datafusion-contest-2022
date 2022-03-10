@@ -17,7 +17,7 @@ def click_pivot(df):
                             columns=['cat_id'],
                             aggfunc=['count']).fillna(0)
     clickstream_embed.columns = [f'{str(i[0])}-{str(i[2])}' for i in clickstream_embed.columns]
-    clickstream_embed.loc[0] = np.empty(len(clickstream_embed.columns))
+    # clickstream_embed.loc[0] = np.empty(len(clickstream_embed.columns))
 
     dtype_clickstream = list()
     for x in clickstream_embed.dtypes.tolist():
@@ -87,6 +87,11 @@ def inference(df_trx, df_click, model, model_features, batch_size=100):
 
             part_of_submit['predicts'] = model.predict(part_of_submit[model_features])
             part_of_submit = part_of_submit[['bank', 'rtk', 'predicts']]
+            
+            zeros_part = pd.DataFrame(bank_ids, columns=['bank'])
+            zeros_part['rtk'] = 0
+            zeros_part['predicts'] = 1.0
+            part_of_submit = pd.concat((part_of_submit, zeros_part))
 
             part_of_submit = part_of_submit.sort_values(by=['bank', 'predicts'], ascending=False).reset_index(drop=True)
             part_of_submit = part_of_submit.pivot_table(index='bank', values='rtk', aggfunc=list)
