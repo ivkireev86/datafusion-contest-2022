@@ -7,8 +7,8 @@
 
 | Model                       | ValPre | ValMRR | Val R1  |  Description |
 | --------------------------- | ------ | ------ | ------- | ------------ |
-| train_concat.ipynb          |  0.12  |  0.009 |  0.017  |  Concat embeddings and predict match as binary task  |
-| train_distance.ipynb        |  0.17  |  0.022 |  0.039  |  Distance between embeddings means similarity. Pairs are sampled from whole sequence |
+| train_concat.ipynb          |  0.278 |  0.174 |  0.214  |  Concat embeddings and predict match as binary task  |
+| train_distance.ipynb        |  0.335 |  0.179 |  0.233  |  Distance between embeddings means similarity. Pairs are sampled from whole sequence |
 | train_distance_window.ipynb |  0.15  |  0.013 |  0.024  |  Distance between embeddings means similarity. Pairs are sampled from the specific time window  |
 
 4. (not fully implemented) Valid pretrained model with `valid.ipynb` on any dataset.
