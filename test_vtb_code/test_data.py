@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from vtb_code.data import PairedDataset, CrossDataset, paired_collate_fn
+from vtb_code.data import PairedDataset, PairedZeroDataset, CrossDataset, paired_collate_fn
 
 
 def get_data():
@@ -43,6 +43,36 @@ def test_paired_dataset():
     }
     for i in range(len(data)):
         assert data[i] == exp[i]
+
+
+def test_paired_zero_dataset():
+    pairs, ds1, ds2 = get_data()
+    data = PairedZeroDataset(pairs[np.all(pairs != '0', axis=1)], [ds1, ds2], get_no_augmentation(), n_sample=1)
+    assert len(data) == 7
+    exp = {
+        0: ([1], [10]),
+        1: ([2], [30]),
+        2: ([3], [20]),
+        3: ([4], [None]),
+        4: ([5], [None]),
+        5: ([6], [None]),
+        6: ([None], [40]),
+    }
+    for i in range(len(data)):
+        assert data[i] == exp[i]
+
+
+def test_paired_zero_dataset_collate_fn():
+    batch = [
+        ([{'col1': torch.arange(4)}, {'col1': torch.arange(3)}], [{'feat1': torch.arange(2)}]),
+        ([{'col1': torch.arange(3)}], [None]),
+        ([None], [{'feat1': torch.arange(6)}, {'feat1': torch.arange(2)}]),
+    ]
+    out = PairedZeroDataset.collate_fn(batch)
+    torch.testing.assert_close(out[1], torch.tensor([0, 0, 1]).int())
+    torch.testing.assert_close(out[4], torch.tensor([0, 2, 2]).int())
+    torch.testing.assert_close(out[2], torch.tensor([0, 0, 1]).int())
+    torch.testing.assert_close(out[5], torch.tensor([0, 1, 1]).int())
 
 
 def test_cross_dataset_ids():

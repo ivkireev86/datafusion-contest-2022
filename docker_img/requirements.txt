@@ -1,0 +1,9 @@
+lightgbm==3.3.2
+pyhocon==0.3.59
+pytorch-lightning==1.5.10
+tensorboard==2.8.0
+torch==1.10.2
+torchmetrics==0.7.2
+tqdm==4.62.3
+setuptools==59.5.0
+pyarrow==7.0.0
