@@ -1,0 +1,4 @@
+{
+    "image": "ovsovnikita/vtb22-data-fusion:0.0.1",
+    "entry_point": "python -u run.py"
+}
