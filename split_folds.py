@@ -60,7 +60,17 @@ def main():
         df_click.to_csv(f'data/clickstream_{fold_id}.csv', index=False)
 
         logger.info(f'Saved data for fold {fold_id}: {len(df_match)} pairs, '
-                    f'{len(df_trx)} transactions, {len(df_click)} clicks')
+                    f'{len(df_trx)} transactions ({len(df_trx["user_id"].unique())} unique users), '
+                    f'{len(df_click)} clicks ({len(df_click["user_id"].unique())} unique users)')
+
+    df_trx = df_transactions[lambda x: ~x['user_id'].isin(df_train_matching['bank'].values)]
+    df_trx.to_csv(f'data/transactions_unmatched.csv', index=False)
+
+    df_click = df_clickstream[lambda x: ~x['user_id'].isin(df_train_matching['rtk'].values)]
+    df_click.to_csv(f'data/clickstream_unmatched.csv', index=False)
+    logger.info(f'Saved unmatched data: '
+                f'{len(df_trx)} transactions ({len(df_trx["user_id"].unique())} unique users), '
+                f'{len(df_click)} clicks ({len(df_click["user_id"].unique())} unique users)')
 
     logger.info(f'All splits saved')
 
