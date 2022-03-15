@@ -1,3 +1,6 @@
 .idea
 data/
 samples/
+lightning_logs
+notebooks/.ipynb_checkpoints/
+results
