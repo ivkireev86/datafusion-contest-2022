@@ -15,7 +15,4 @@ python split_folds.py
 ```
 
 # Pack
-```
-zip -r nn_distance.zip dltranz vtb_code metadata.json nn_distance_inference.py click_categories.csv nn_distance_model.cpt preprocessor_click.p preprocessor_trx.p
-
-```
+See `build.md` in submit folder

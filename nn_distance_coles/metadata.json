@@ -1,0 +1,4 @@
+{
+    "image": "ivkireev86/data_fusion2022:0.0.2",
+    "entry_point": "python -u nn_distance_inference.py"
+}
