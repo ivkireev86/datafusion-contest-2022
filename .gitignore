@@ -1,5 +1,5 @@
 .idea
-data/
+data
 samples/
 lightning_logs
 notebooks/.ipynb_checkpoints/
