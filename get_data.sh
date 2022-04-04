@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-mkdir data
+mkdir -p data
 cd data/
 
 curl -OL https://storage.yandexcloud.net/datasouls-ods/materials/0433a4ca/transactions.zip
