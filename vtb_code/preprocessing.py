@@ -21,11 +21,12 @@ def trx_types(df):
     return df[['user_id', 'event_time', 'mcc_code', 'currency_rk', 'transaction_amt']]
 
 
-def click_types(df):
+def click_types(df, data_path=''):
     df['event_time'] = pd.to_datetime(df['timestamp']).astype(int) / 1e9
-    df = pd.merge(df, pd.read_csv('click_categories.csv'), on='cat_id')
+    df = pd.merge(df, pd.read_csv(data_path + 'click_categories.csv'), on='cat_id')
     df['cat_id'] = df['cat_id'].astype(str)
     return df[['user_id', 'event_time', 'cat_id', 'level_0', 'level_1', 'level_2', 'new_uid']]
+
 
 def trx_to_torch(seq):
     seq = CategorySizeClip(CATEGORY_MAX_SIZE_TRX)(seq)
