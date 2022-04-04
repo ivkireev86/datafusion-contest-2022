@@ -25,8 +25,7 @@ def click_types(df):
     df['event_time'] = pd.to_datetime(df['timestamp']).astype(int) / 1e9
     df = pd.merge(df, pd.read_csv('click_categories.csv'), on='cat_id')
     df['cat_id'] = df['cat_id'].astype(str)
-    return df[['user_id', 'event_time', 'cat_id', 'level_0', 'level_1', 'level_2']]
-
+    return df[['user_id', 'event_time', 'cat_id', 'level_0', 'level_1', 'level_2', 'new_uid']]
 
 def trx_to_torch(seq):
     seq = CategorySizeClip(CATEGORY_MAX_SIZE_TRX)(seq)
@@ -48,5 +47,5 @@ def click_to_torch(seq):
             'level_0': torch.from_numpy(x['level_0']).int(),
             'level_1': torch.from_numpy(x['level_1']).int(),
             'level_2': torch.from_numpy(x['level_2']).int(),
-
+            'new_uid': torch.from_numpy(x['new_uid']).int(),
         }

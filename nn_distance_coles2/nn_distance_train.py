@@ -107,6 +107,7 @@ def main():
         time_transformation='none',
         cols_category=["mcc_code", "currency_rk"],
         cols_log_norm=["transaction_amt"],
+        cols_identity=[],
         print_dataset_info=False,
     )
     preprocessor_click = PandasDataPreprocessor(
@@ -115,6 +116,7 @@ def main():
         time_transformation='none',
         cols_category=['cat_id', 'level_0', 'level_1', 'level_2'],
         cols_log_norm=[],
+        cols_identity=['new_uid'],
         print_dataset_info=False,
     )
 
