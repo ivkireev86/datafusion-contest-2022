@@ -9,7 +9,7 @@ from dltranz.metric_learn.sampling_strategies import PairSelector, TripletSelect
 from dltranz.metric_learn.metric import outer_pairwise_distance
 
 from vtb_code.metrics import PrecisionK, MeanReciprocalRankK
-
+import torchmetrics
 
 class VICRegLoss(torch.nn.Module):
     def __init__(self,
@@ -620,3 +620,18 @@ class UniformNegativePairSelector(PairSelector):
         negative_pairs = neg_ix[selected_neg_dist > 0.0]
 
         return positive_pairs, negative_pairs
+
+
+class MeanLoss(torchmetrics.Metric):
+    def __init__(self, **params):
+        super().__init__(**params)
+
+        self.add_state('_sum', torch.tensor([0.0]))
+        self.add_state('_cnt', torch.tensor([0]))
+
+    def update(self, x):
+        self._sum += x.sum()
+        self._cnt += x.numel()
+
+    def compute(self):
+        return self._sum / self._cnt.float()

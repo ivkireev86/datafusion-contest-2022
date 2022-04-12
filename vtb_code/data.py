@@ -91,30 +91,55 @@ class PairedZeroDataset(torch.utils.data.Dataset):
 
 
 class PairedNegativeDataset(torch.utils.data.Dataset):
-    def __init__(self, pairs, data, augmentations, neg_rate):
+    def __init__(self, pairs, data, augmentations, neg_rate, is_shuffle=True):
         super().__init__()
 
         self.pairs = pairs
         self.data = data
         self.augmentations = augmentations
         self.neg_rate = neg_rate
+        self.is_shuffle = is_shuffle
 
+        self.full_pairs = self.get_full_pairs()
         self.sample_ixs, self.labels = self.get_sample_ixs()
 
+    @staticmethod
+    def not_in(v, items_to_exclude):
+        a = np.sort(items_to_exclude)
+        return v[np.pad(a, pad_width=(0, 1), constant_values='')[np.searchsorted(a, v)] != v]
+
+    def get_full_pairs(self):
+        free_trx = self.not_in(np.array(list(self.data[0].keys())), self.pairs[:, 0]).reshape(-1, 1)
+        free_clicks = self.not_in(np.array(list(self.data[1].keys())), self.pairs[:, 1]).reshape(-1, 1)
+
+        return np.concatenate([
+            self.pairs,
+            np.concatenate([free_trx, np.full((len(free_trx), 1), '0')], axis=1),
+            np.concatenate([np.full((len(free_clicks), 1), '0'), free_clicks], axis=1),
+        ], axis=0)
+
     def get_sample_ixs(self):
-        n = len(self.pairs)
-        pos_ix = np.arange(n).reshape(-1, 1).repeat(2, axis=1)
-        neg_ix = np.stack((1 - np.eye(n)).nonzero(), axis=1)
+        n = len(self.full_pairs)
+        full_labels = np.arange(n)
+        pos_ix = full_labels[(self.full_pairs != '0').all(axis=1)].reshape(-1, 1).repeat(2, axis=1)
+
+        labels0 = full_labels[self.full_pairs[:, 0] != '0']
+        labels1 = full_labels[self.full_pairs[:, 1] != '0']
+        neg_ix = (labels0.reshape(-1, 1) != labels1.reshape(1, -1)).nonzero()
+        neg_ix = [l[i] for l, i in zip([labels0, labels1], neg_ix)]
+        neg_ix = np.stack(neg_ix, axis=1)
         n_neg = int(len(pos_ix) * self.neg_rate)
         if len(neg_ix) > n_neg:
-            neg_ix = neg_ix[np.random.choice(len(neg_ix), size=n_neg, replace=False)]
+            sampled_neg_ix = np.random.choice(len(neg_ix), size=n_neg, replace=False)
+            neg_ix = neg_ix[sampled_neg_ix]
 
         ixs = np.concatenate([pos_ix, neg_ix])
         labels = torch.cat([torch.ones(len(pos_ix)), torch.zeros(len(neg_ix))])
-        _i = np.arange(len(ixs))
-        np.random.shuffle(_i)
-        ixs = ixs[_i]
-        labels = labels[_i]
+        if self.is_shuffle:
+            _i = np.arange(len(ixs))
+            np.random.shuffle(_i)
+            ixs = ixs[_i]
+            labels = labels[_i]
         return ixs, labels
 
     def __len__(self):
@@ -122,9 +147,16 @@ class PairedNegativeDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, item):
         ixs = self.sample_ixs[item]
-        ids = self.pairs[ixs[0], 0], self.pairs[ixs[1], 1]
+        ids = self.full_pairs[ixs[0], 0], self.pairs[ixs[1], 1]
         return tuple([a(d[i])
                       for i, d, a in zip(ids, self.data, self.augmentations)]), self.labels[item]
+
+    @ staticmethod
+    def collate_fn(batch):
+        s_trx = [i for (i, _), _ in batch]
+        s_click = [i for (_, i), _ in batch]
+        labels = [i for (_, _), i in batch]
+        return (padded_collate_wo_target(s_trx), padded_collate_wo_target(s_click)), torch.tensor(labels)
 
 
 class InferenceSplittingDataset(torch.utils.data.Dataset):
@@ -206,3 +238,42 @@ class DropDuplicate:
         new_ix = np.where(diff != 0)[0]
         new_cnt = np.diff(new_ix, append=len(x))
         return new_ix, new_cnt
+
+
+def frequency_encoder(x, mask=None, pad_value=0):
+    a = x if mask is None else x[mask]
+    u, c = torch.unique(a, sorted=True, return_counts=True)
+    ix = torch.cat([torch.argsort(c, descending=True).long() + 1, torch.zeros(1, dtype=torch.long, device=x.device)])
+    if mask is None:
+        return ix[torch.searchsorted(u, x)]
+    return torch.where(mask, ix[torch.searchsorted(u, x)], torch.full_like(x, fill_value=pad_value, dtype=torch.long))
+
+
+class WeekTicks:
+    def __init__(self, step_days):
+        super().__init__()
+
+        self.step_days = step_days
+        self.step_sec = step_days * 24 * 60 * 60
+
+    def __call__(self, x):
+        et = x['event_time']
+        t_from = torch.ceil(et.min() / self.step_sec) * self.step_sec
+        t_to = torch.floor(et.max() / self.step_sec) * self.step_sec + 1
+        if t_to <= t_from:
+            new_x = {k: v for k, v in x.items()}
+            new_x['ticks'] = torch.zeros(len(et)).long()
+            return new_x
+
+        tick_times = torch.arange(t_from, t_to, self.step_sec)
+        tick_zeros = torch.zeros_like(tick_times)
+        new_x = {k: torch.cat([v, tick_times if k == 'event_time' else tick_zeros.to(dtype=v.dtype)])
+                 for k, v in x.items()}
+        new_x['ticks'] = torch.cat([torch.zeros(len(et)), torch.ones(len(tick_times))]).long()
+
+        et = new_x['event_time']
+        ix = torch.argsort(et)
+        new_x = {k: v[ix] for k, v in new_x.items()}
+
+        return new_x
+

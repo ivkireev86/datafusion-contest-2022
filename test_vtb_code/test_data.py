@@ -1,6 +1,7 @@
 import numpy as np
 import torch
-from vtb_code.data import PairedDataset, PairedZeroDataset, CrossDataset, paired_collate_fn
+from vtb_code.data import PairedDataset, PairedZeroDataset, PairedNegativeDataset, CrossDataset, paired_collate_fn
+from vtb_code.data import frequency_encoder
 
 
 def get_data():
@@ -142,3 +143,62 @@ def test_paired_collate_fn():
     torch.testing.assert_close(out[1][0].payload['feat1'], exp1p)
     torch.testing.assert_close(out[1][0].seq_lens, exp1s)
     torch.testing.assert_close(out[1][1], torch.arange(3))
+
+
+def test_paired_negative_dataset():
+    ds = PairedNegativeDataset(
+        pairs=np.array([
+            ['a', 'b', 'c'],
+            ['A', 'B', 'C'],
+        ]).T,
+        data=[
+            {'a': 0, 'b': 1, 'c': 2, 'd': 3},
+            {'A': 5, 'B': 6, 'C': 7, 'D': 8, 'E': 9},
+        ],
+        augmentations=get_no_augmentation(),
+        neg_rate=(4 * 5 - 3) / 3,
+        is_shuffle=False,
+    )
+    np.testing.assert_equal(
+        ds.full_pairs,
+        np.array([
+            ['a', 'b', 'c', 'd', '0', '0'],
+            ['A', 'B', 'C', '0', 'D', 'E'],
+        ]).T
+    )
+    np.testing.assert_equal(
+        ds.sample_ixs,
+        np.array([
+            [0, 1, 2, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3],
+            [0, 1, 2, 1, 2, 4, 5, 0, 2, 4, 5, 0, 1, 4, 5, 0, 1, 2, 4, 5],
+        ]).T
+        # np.array([
+        #     ['a', 'b', 'c', 'a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'c', 'c', 'c', 'c', 'd', 'd', 'd', 'd', 'd'],
+        #     ['A', 'B', 'C', 'B', 'C', 'D', 'E', 'A', 'C', 'D', 'E', 'A', 'B', 'D', 'E', 'A', 'B', 'C', 'D', 'E'],
+        # ]).T
+    )
+    np.testing.assert_equal(
+        ds.labels,
+        np.array([1] * 3 + [0] * 17)
+    )
+
+
+def test_frequency_encoder():
+    x = torch.tensor([11, 13, 11, 10, 12, 10, 11, 11, 10, 12])
+    y = frequency_encoder(x)
+    exp = torch.tensor([1, 4, 1, 2, 3, 2, 1, 1, 2, 3])
+    torch.testing.assert_close(y, exp)
+
+
+def test_frequency_encoder_with_pad():
+    x = torch.tensor([11, 13, 11, 10, 12, 10, 11, 11, 10, 12, 0, 0, 0])
+    y = frequency_encoder(x, x != 0)
+    exp = torch.tensor([1, 4, 1, 2, 3, 2, 1, 1, 2, 3, 0, 0, 0])
+    torch.testing.assert_close(y, exp)
+
+
+def test_frequency_encoder_with_mask():
+    x = torch.tensor([11, 13, 11, 10, 12, 10, 11, 11, 10, 12, 100, 100, 100])
+    y = frequency_encoder(x, x != 100)
+    exp = torch.tensor([1, 4, 1, 2, 3, 2, 1, 1, 2, 3, 0, 0, 0])
+    torch.testing.assert_close(y, exp)
