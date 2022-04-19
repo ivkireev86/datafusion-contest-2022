@@ -12,6 +12,9 @@ pipenv install "setuptools==59.5.0"
 # split data
 python split_folds.py
 
+# Then preproces data, rerun `notebooks/prepare_features.ipynb` six times, changing `FOLD_ID = 0, 1, ..., 5`
+# this prepares pickles with prepared features by folds, witch are used in other notebooks.
+
 ```
 
 # Pack
