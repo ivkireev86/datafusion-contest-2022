@@ -85,18 +85,19 @@ def main():
         persistent_workers=True,
     )
 
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
     res = []
     for model_path in glob('nn_distance_coles_model_?.cpt'):
         mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint('pretrain_trx.cpt')
         mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint('pretrain_click.cpt')
         pl_module = PairedModule.load_from_checkpoint(model_path,
                                                       mlm_model_trx=mlm_model_trx,
-                                                      mlm_model_click=mlm_model_click,)
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        else:
-            device = torch.device('cpu')
-
+                                                      mlm_model_click=mlm_model_click,
+                                                      )
         pl_module.to(device)
         pl_module.eval()
 
@@ -133,16 +134,17 @@ def main():
             ], dim=1)
             res.append(z_out)
             print('Cross scores done')
-        # merge ensemble
-        z_out = torch.stack(res, dim=0).sum(dim=0)
-        print('Merge ensemble done')
 
-        uid_rtk = np.concatenate([[0], uid_rtk])
+    # merge ensemble
+    z_out = torch.stack(res, dim=0).sum(dim=0)
+    print('Merge ensemble done')
 
-        k = min(100, z_out.size(1))
-        # k = 100
-        z_out = torch.topk(z_out, k=k, dim=1, largest=True, sorted=True).indices
-        z_out = z_out.cpu()
+    uid_rtk = np.concatenate([[0], uid_rtk])
+
+    k = min(100, z_out.size(1))
+    # k = 100
+    z_out = torch.topk(z_out, k=k, dim=1, largest=True, sorted=True).indices
+    z_out = z_out.cpu()
 
     submission_final = []
     for i, l in zip(uid_banks, uid_rtk[z_out]):
