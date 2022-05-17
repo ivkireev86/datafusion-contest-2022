@@ -1,0 +1,11 @@
+main                   : Data loading...
+main                   : Loaded 17581 pairs, 19821910 transactions, 126752515 clicks
+main                   : Prepared 4 bins for trx and clicks
+main                   : Saved data for fold 0: 2931 pairs, 2572365 transactions (2931 unique users), 15124893 clicks (2446 unique users)
+main                   : Saved data for fold 1: 2930 pairs, 2583449 transactions (2930 unique users), 16898083 clicks (2445 unique users)
+main                   : Saved data for fold 2: 2930 pairs, 2579526 transactions (2930 unique users), 16838662 clicks (2445 unique users)
+main                   : Saved data for fold 3: 2930 pairs, 2568464 transactions (2930 unique users), 15739400 clicks (2445 unique users)
+main                   : Saved data for fold 4: 2930 pairs, 2576772 transactions (2930 unique users), 15029891 clicks (2445 unique users)
+main                   : Saved data for fold 5: 2930 pairs, 2559992 transactions (2930 unique users), 15165618 clicks (2445 unique users)
+main                   : Saved unmatched data: 4381342 transactions (4952 unique users), 31955968 clicks (4952 unique users)
+main                   : All splits saved
