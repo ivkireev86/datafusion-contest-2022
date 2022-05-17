@@ -1,17 +1,17 @@
 import gc
 import pickle
 import sys
-
 from glob import glob
+
 import numpy as np
 import pandas as pd
 import torch
-from dltranz.data_load import augmentation_chain
-from dltranz.data_load.augmentations.seq_len_limit import SeqLenLimit
+from ptls.data_load import augmentation_chain
+from ptls.data_load.augmentations.seq_len_limit import SeqLenLimit
 
+from vtb_code.data import PairedDataset, DropDuplicate
 from vtb_code.model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule
-from src.vtb_code.data import PairedDataset, DropDuplicate
-from src.vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
+from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
 def load_data(valid_fold_id):
@@ -21,12 +21,12 @@ def load_data(valid_fold_id):
     print(f'Loaded csv files. {len(df_trx)} transactions, {len(df_click)} clicks')
     df_trx = trx_types(df_trx)
     df_click = click_types(df_click)
-    print(f'Loaded csv files. {len(df_trx)} transactions, {len(df_click)} clicks')
     with open('preprocessor_trx.p', 'rb') as f:
         preprocessor_trx = pickle.load(f)
     with open('preprocessor_click.p', 'rb') as f:
         preprocessor_click = pickle.load(f)
     print(f'Loaded preprocessor files')
+
     features_trx = dict(trx_to_torch(preprocessor_trx.transform(df_trx)))
     print(f'Trx features prepared: {len(features_trx)} users')
     features_click = dict(click_to_torch(preprocessor_click.transform(df_click)))
@@ -118,7 +118,6 @@ def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click):
             torch.zeros((T, 1), device=device),
             z_out,
         ], dim=1)
-        print('Cross scores done')
     return z_out
 
 
@@ -127,9 +126,14 @@ def main():
     uid_banks, uid_rtk, valid_dl_trx, valid_dl_click = load_data(valid_fold_id)
 
     res = []
-    for model_path in glob('nn_distance_coles_model_*.cpt'):
+    model_list = sorted(glob('nn_distance_coles_model_*.cpt'))
+    if len(model_list) == 0:
+        raise FileNotFoundError('No models found')
+    for i, model_path in enumerate(model_list):
         z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click)
         res.append(z_out)
+        print(f'Cross scores done [{i}: "{model_path}"]')
+
     # merge ensemble
     z_out = torch.stack(res, dim=0).sum(dim=0)
     print('Merge ensemble done')

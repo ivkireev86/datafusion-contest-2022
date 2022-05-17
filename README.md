@@ -53,10 +53,17 @@ sh get_data.sh
 # Split data
 python src/split_folds.py
 
-# Train all models
-python nn_distance_train.py
+cd src/
 
-# Inference on test dataset
-python nn_distance_inference.py
+# Pipeline with validation, valid_fold_id shold be provided as parameter
+python nn_train.py 5
+python nn_inference.py 5
+python nn_evaluation.py 5
+
+
+# Pipeline without validation, train model before submit
+python nn_distance_train.py
+# there are no data for validation, all data was in train
+# python nn_distance_inference.py
 
 ```

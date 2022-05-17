@@ -230,7 +230,7 @@ def pretrain_mlm_click(features_click_train):
     print(f'version = {model_version_click}')
     trainer.fit(mlm_model_click, train_dl_mlm_click)
     trainer.save_checkpoint('pretrain_click.cpt', weights_only=True)
-    print('Trx pretrain done')
+    print('Click pretrain done')
 
 
 def train_qsm(df_matching_train, features_trx_train, features_click_train, model_n):
