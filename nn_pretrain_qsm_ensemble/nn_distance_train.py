@@ -19,7 +19,7 @@ from model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule
 from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
-ENSEMBLE_SIZE = 5
+ENSEMBLE_SIZE = 11
 
 
 config_mlm = ConfigFactory.parse_string('''

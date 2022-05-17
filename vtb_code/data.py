@@ -277,3 +277,29 @@ class WeekTicks:
 
         return new_x
 
+
+class PairedNegDataset(torch.utils.data.Dataset):
+    def __init__(self, pairs, data, augmentations, neg_count):
+        super().__init__()
+
+        self.pairs = pairs
+        self.data = data
+        self.augmentations = augmentations
+        self.neg_count = neg_count
+
+        self.all_clicks = np.sort(np.array(list(self.data[1].keys())))
+
+    @staticmethod
+    def collate_fn(batch):
+        return [coles_collate_fn(c) for c in zip(*batch)]
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def __getitem__(self, item):
+        trx_id, click_id = self.pairs[item]
+        c_ids = np.random.choice([i for i in self.all_clicks if i != click_id], size=self.neg_count - 1, replace=False)
+        return (
+            [self.augmentations[0](self.data[0][trx_id])],
+            [self.augmentations[1](self.data[1][click_id])] + [self.augmentations[1](self.data[1][c]) for c in c_ids]
+        )

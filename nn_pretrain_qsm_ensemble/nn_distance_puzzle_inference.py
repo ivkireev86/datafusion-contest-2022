@@ -16,18 +16,12 @@ from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_t
 
 
 def main():
-    data, output_path = sys.argv[1:]
-
-    print(f'Loading...')
-    os.system(f'ls -l {data}/*')
-
-    df_trx = pd.read_csv(f'{data}/transactions.csv')
-    df_click = pd.read_csv(f'{data}/clickstream.csv')
-    print(f'Loaded csv files from "{data}". {len(df_trx)} transactions, {len(df_click)} clicks')
+    df_trx = pd.read_csv(f'../data/transactions_unmatched.csv')
+    df_click = pd.read_csv(f'../data/clickstream_unmatched.csv')
+    print(f'Loaded csv files. {len(df_trx)} transactions, {len(df_click)} clicks')
 
     df_trx = trx_types(df_trx)
     df_click = click_types(df_click)
-    print(f'Loaded csv files from "{data}". {len(df_trx)} transactions, {len(df_click)} clicks')
 
     with open('preprocessor_trx.p', 'rb') as f:
         preprocessor_trx = pickle.load(f)
@@ -41,8 +35,9 @@ def main():
     features_click = dict(click_to_torch(preprocessor_click.transform(df_click)))
     print(f'Click features prepared: {len(features_click)} users')
 
-    uid_banks = np.sort(df_trx['user_id'].unique())
-    uid_rtk = np.sort(df_click['user_id'].unique())
+    df_puzzle = pd.read_csv('../data/puzzle.csv')
+    uid_banks = np.sort(df_puzzle['bank'].unique())
+    uid_rtk = np.sort(df_puzzle['rtk'].unique())
     print(f'uid_banks: {uid_banks.shape}, uid_rtk: {uid_rtk.shape}')
 
     del df_trx
@@ -101,7 +96,7 @@ def main():
         pl_module.to(device)
         pl_module.eval()
 
-        print('Scoring...')
+        print(f'Scoring with "{model_path}"...')
         with torch.no_grad():
             z_trx = []
             for ((x_trx, _),) in valid_dl_trx:
@@ -128,18 +123,18 @@ def main():
                 ], dim=1)
                 z_out.append(pl_module.cls(z_pairs).unsqueeze(1))
             z_out = torch.cat(z_out, dim=0).view(T, C)
-            z_out = torch.cat([
-                torch.zeros((T, 1), device=device),
-                z_out,
-            ], dim=1)
+            # z_out = torch.cat([
+            #     torch.zeros((T, 1), device=device),
+            #     z_out,
+            # ], dim=1)
             res.append(z_out)
-            print('Cross scores done')
+            print(f'Cross scores with "{model_path}" done')
 
     # merge ensemble
     z_out = torch.stack(res, dim=0).sum(dim=0)
     print('Merge ensemble done')
 
-    uid_rtk = np.concatenate([[0], uid_rtk])
+    # uid_rtk = np.concatenate([[0], uid_rtk])
 
     k = min(100, z_out.size(1))
     # k = 100
@@ -150,9 +145,10 @@ def main():
     for i, l in zip(uid_banks, uid_rtk[z_out]):
         submission_final.append([i, l])
 
-    submission_final = np.array(submission_final, dtype=object)
+    submission_final = pd.DataFrame(submission_final, columns=['bank', 'rtk_list'])
+    submission_final['rtk_list'] = submission_final['rtk_list'].apply(lambda x: '[' + ', '.join(x) + ']')
     print(submission_final.shape)
-    np.savez(output_path, submission_final)
+    submission_final.to_csv("puzzle_submit.csv", index=False)
 
 
 if __name__ == "__main__":
