@@ -2,7 +2,7 @@
 
 [Link to competition](https://ods.ai/competitions/data-fusion2022-main-challenge)
 
-Our solution acheived **1-st** place on the private liderboard.
+Our solution acheived **1-st** place on the private leaderboard.
 
 # Overview
 
