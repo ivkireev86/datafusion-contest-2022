@@ -68,23 +68,23 @@ class MLMPretrainModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        common_trx_size = params['common_trx_size']
+        common_trx_size = params.common_trx_size
         self.seq_encoder = None
 
         self.token_mask = torch.nn.Parameter(torch.randn(1, 1, common_trx_size), requires_grad=True)
         self.transf = torch.nn.TransformerEncoder(
             encoder_layer=torch.nn.TransformerEncoderLayer(
                 d_model=common_trx_size,
-                nhead=params['transf.nhead'],
-                dim_feedforward=params['transf.dim_feedforward'],
-                dropout=params['transf.dropout'],
+                nhead=params.transf.nhead,
+                dim_feedforward=params.transf.dim_feedforward,
+                dropout=params.transf.dropout,
                 batch_first=True,
             ),
-            num_layers=params['transf.num_layers'],
-            norm=torch.nn.LayerNorm(common_trx_size) if params['transf.norm'] else None,
+            num_layers=params.transf.num_layers,
+            norm=torch.nn.LayerNorm(common_trx_size) if params.transf.norm else None,
         )
 
-        if params['transf.use_pe']:
+        if params.transf.use_pe:
             self.pe = torch.nn.Parameter(self.get_pe(), requires_grad=False)
         else:
             self.pe = None
@@ -96,8 +96,8 @@ class MLMPretrainModule(pl.LightningModule):
         self.valid_mlm_loss_self = MeanLoss(compute_on_step=False)
 
     def get_pe(self):
-        max_len = self.hparams.params['transf.max_len']
-        H = self.hparams.params['common_trx_size']
+        max_len = self.hparams.params.transf.max_len
+        H = self.hparams.params.common_trx_size
         f = 2 * np.pi * torch.arange(max_len).view(1, -1, 1) / \
             torch.exp(torch.linspace(*np.log([4, max_len]), H // 2)).view(1, 1, -1)
         return torch.cat([torch.sin(f), torch.cos(f)], dim=2)
@@ -119,7 +119,7 @@ class MLMPretrainModule(pl.LightningModule):
         return [optim], [scheduler]
 
     def get_mask(self, x: PaddedBatch):
-        return torch.bernoulli(x.seq_len_mask.float() * self.hparams.params['mlm.replace_proba']).bool()
+        return torch.bernoulli(x.seq_len_mask.float() * self.hparams.params.mlm.replace_proba).bool()
 
     def mask_x(self, x: PaddedBatch, mask):
         return torch.where(mask.unsqueeze(2).expand_as(x.payload),
@@ -133,7 +133,7 @@ class MLMPretrainModule(pl.LightningModule):
         if neg_type == 'all':
             mn = mask.float().view(1, -1) - \
                  torch.eye(mask.numel(), device=mask.device)[mask.flatten()]
-            neg_ix = torch.multinomial(mn, self.hparams.params['mlm.neg_count_all'])
+            neg_ix = torch.multinomial(mn, self.hparams.params.mlm.neg_count_all)
             b_ix = neg_ix.div(mask.size(1), rounding_mode='trunc')
             neg_ix = neg_ix % mask.size(1)
             return b_ix, neg_ix
@@ -142,7 +142,7 @@ class MLMPretrainModule(pl.LightningModule):
             one_pos = torch.eye(mask.size(1), device=mask.device)[mask_ix[:, 1]]
             mn = mask[mask_ix[:, 0]].float() - one_pos
             mn = mn + 1e-9 * (1 - one_pos)
-            neg_ix = torch.multinomial(mn, self.hparams.params['mlm.neg_count_self'], replacement=True)
+            neg_ix = torch.multinomial(mn, self.hparams.params.mlm.neg_count_self, replacement=True)
             b_ix = mask_ix[:, 0].view(-1, 1).expand_as(neg_ix)
             return b_ix, neg_ix
         raise AttributeError(f'Unknown neg_type: {neg_type}')
@@ -157,7 +157,7 @@ class MLMPretrainModule(pl.LightningModule):
 
         if self.pe is not None:
             if self.training:
-                start_pos = np.random.randint(0, self.hparams.params['transf.max_len'] - T, 1)[0]
+                start_pos = np.random.randint(0, self.hparams.params.transf.max_len - T, 1)[0]
             else:
                 start_pos = 0
             pe = self.pe[:, start_pos:start_pos + T]
@@ -233,13 +233,13 @@ class MLMPretrainModuleTrx(MLMPretrainModule):
                          )
         self.save_hyperparameters()
 
-        common_trx_size = self.hparams.params['common_trx_size']
-        t = TrxEncoder(self.hparams.params['trx_seq.trx_encoder'])
+        common_trx_size = self.hparams.params.common_trx_size
+        t = TrxEncoder(self.hparams.params.trx_seq.trx_encoder)
         self.seq_encoder = torch.nn.Sequential(
             CustomTrxTransform(trx_amnt_quantiles=trx_amnt_quantiles),
             DateFeaturesTransform(),
             t, PBLinear(t.output_size, common_trx_size),
-            PBL2Norm(self.hparams.params['mlm.beta']),
+            PBL2Norm(self.hparams.params.mlm.beta),
         )
 
 
@@ -255,13 +255,13 @@ class MLMPretrainModuleClick(MLMPretrainModule):
                          )
         self.save_hyperparameters()
 
-        common_trx_size = self.hparams.params['common_trx_size']
-        t = TrxEncoder(self.hparams.params['click_seq.trx_encoder'])
+        common_trx_size = self.hparams.params.common_trx_size
+        t = TrxEncoder(self.hparams.params.click_seq.trx_encoder)
         self.seq_encoder = torch.nn.Sequential(
             CustomClickTransform(),
             DateFeaturesTransform(),
             t, PBLinear(t.output_size, common_trx_size),
-            PBL2Norm(self.hparams.params['mlm.beta']),
+            PBL2Norm(self.hparams.params.mlm.beta),
         )
 
 
@@ -280,9 +280,9 @@ class PairedModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=['mlm_model_trx', 'mlm_model_click'])
 
-        common_trx_size = mlm_model_trx.hparams.params['common_trx_size']
+        common_trx_size = mlm_model_trx.hparams.params.common_trx_size
         self.rnn_enc = torch.nn.Sequential(
-            RnnEncoder(common_trx_size, params['rnn']),
+            RnnEncoder(common_trx_size, params.rnn),
             LastStepEncoder(),
             #             NormEncoder(),
         )

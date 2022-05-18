@@ -24,7 +24,7 @@ numpy = "*"
 pandas = "*"
 pyspark = "*"
 
-pyhocon = "*"
+hydra-core = "*"
 tqdm = "*"
 
 torch = "*"

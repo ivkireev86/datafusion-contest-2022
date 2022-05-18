@@ -1,13 +1,14 @@
+import hydra
 import numpy as np
 import pandas as pd
-import sys
 
 
-def main():
-    valid_fold_id = int(sys.argv[1])
+@hydra.main(version_base='1.2', config_path="../conf", config_name="config")
+def main(cfg):
+    valid_fold_id = cfg.valid_fold_id
 
-    df_valid_match = pd.read_csv(f'../data/train_matching_{valid_fold_id}.csv').set_index('bank')['rtk']
-    with np.load('submission_final.npz', allow_pickle=True) as f:
+    df_valid_match = pd.read_csv(f'{cfg.data_path}/train_matching_{valid_fold_id}.csv').set_index('bank')['rtk']
+    with np.load(f'{cfg.objects_path}/submission_final.npz', allow_pickle=True) as f:
         submission_final = f['arr_0']
 
     mrr = 0
