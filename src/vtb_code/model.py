@@ -1,13 +1,18 @@
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from ptls.seq_encoder.rnn_encoder import RnnEncoder
+from ptls.seq_encoder.utils import LastStepEncoder
+from ptls.trx_encoder import TrxEncoder, PaddedBatch
 
-from src.vtb_code.metrics import PrecisionK, MeanReciprocalRankK
-from src.vtb_code import L2Scorer, MeanLoss
+from vtb_code.metrics import PrecisionK, MeanReciprocalRankK, MeanLoss
 
-from dltranz.trx_encoder import TrxEncoder, PaddedBatch
-from dltranz.seq_encoder.rnn_encoder import RnnEncoder
-from dltranz.seq_encoder.utils import LastStepEncoder
+
+class L2Scorer(torch.nn.Module):
+    def forward(self, x):
+        B, H = x.size()
+        a, b =x[:, :H // 2], x[:, H // 2:]
+        return -(a - b).pow(2).sum(dim=1)
 
 
 class CustomTrxTransform(torch.nn.Module):
@@ -370,3 +375,5 @@ class PairedModule(pl.LightningModule):
     def training_epoch_end(self, _):
         self.log('train_metrics/precision', self.train_precision, prog_bar=True)
         self.log('train_metrics/mrr', self.train_mrr, prog_bar=True)
+
+

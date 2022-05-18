@@ -3,7 +3,7 @@ import unittest.mock
 import numpy as np
 import pandas as pd
 import torch
-from src.vtb_code.metrics import PrecisionK, MeanReciprocalRankK, ValidationCallback
+from vtb_code.metrics import PrecisionK, MeanReciprocalRankK, ValidationCallback
 
 
 def get_data1():

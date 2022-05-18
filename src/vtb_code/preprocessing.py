@@ -1,17 +1,5 @@
 import pandas as pd
 import torch
-from dltranz.data_load.iterable_processing.category_size_clip import CategorySizeClip
-
-CATEGORY_MAX_SIZE_TRX = {
-    'mcc_code': 350,
-    'currency_rk': 5,
-}
-CATEGORY_MAX_SIZE_CLICK = {
-    'cat_id': 400,
-    'level_0': 400,
-    'level_1': 400,
-    'level_2': 400,
-}
 
 
 def trx_types(df):
@@ -29,7 +17,6 @@ def click_types(df, data_path=''):
 
 
 def trx_to_torch(seq):
-    seq = CategorySizeClip(CATEGORY_MAX_SIZE_TRX)(seq)
     for x in seq:
         yield x['user_id'], {
             'event_time': torch.from_numpy(x['event_time']).float(),
@@ -40,7 +27,6 @@ def trx_to_torch(seq):
 
 
 def click_to_torch(seq):
-    seq = CategorySizeClip(CATEGORY_MAX_SIZE_CLICK)(seq)
     for x in seq:
         yield x['user_id'], {
             'event_time': torch.from_numpy(x['event_time']).float(),

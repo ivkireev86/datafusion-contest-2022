@@ -1,28 +1,25 @@
+import gc
 import pickle
 import random
+import sys
 from glob import glob
+
 import numpy as np
 import pandas as pd
-import torch
 import pytorch_lightning as pl
+import torch
+from ptls.data_load import augmentation_chain
+from ptls.data_load.augmentations.random_slice import RandomSlice
+from ptls.data_preprocessing.pandas_preprocessor import PandasDataPreprocessor
 from pyhocon import ConfigFactory
 
-import gc
-
-from dltranz.data_load import augmentation_chain
-from dltranz.data_load.augmentations.random_slice import RandomSlice
-from dltranz.data_preprocessing.pandas_preprocessor import PandasDataPreprocessor
-
-from src.vtb_code.data import PairedDataset, PairedZeroDataset, DropDuplicate, paired_collate_fn
-
-from model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule
-from src.vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
+from vtb_code.model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule
+from vtb_code.data import PairedDataset, PairedFullDataset, DropDuplicate
+from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
 ENSEMBLE_SIZE = 11
-
-
-config_mlm = ConfigFactory.parse_string('''
+CONFIG_MLM = ConfigFactory.parse_string('''
     common_trx_size: 256
     transf: {
         nhead: 4
@@ -84,6 +81,58 @@ config_mlm = ConfigFactory.parse_string('''
         },
     }
 ''')
+CONFIG_QSM = ConfigFactory.parse_string('''
+        common_trx_size: 128
+        rnn: {
+          type: gru,
+          hidden_size: 256,
+          bidir: false,
+          trainable_starter: static
+        }
+    ''')
+
+
+def load_data(valid_fold_id):
+    folds_count = len(glob('../data/train_matching_*.csv'))
+    train_folds = [i for i in range(folds_count) if valid_fold_id is not None and i != valid_fold_id]
+    print(f'Total folds_count = {folds_count}, used {len(train_folds)}')
+    print(f'Loading...')
+
+    df_matching_train = pd.concat([pd.read_csv(f'../data/train_matching_{i}.csv') for i in train_folds])
+    df_trx_train = pd.concat([trx_types(pd.read_csv(f'../data/transactions_{i}.csv')) for i in train_folds])
+    df_click_train = pd.concat([click_types(pd.read_csv(f'../data/clickstream_{i}.csv')) for i in train_folds])
+    print(f'Loaded csv files')
+    preprocessor_trx = PandasDataPreprocessor(
+        col_id='user_id',
+        cols_event_time='event_time',
+        time_transformation='none',
+        cols_category=["mcc_code", "currency_rk"],
+        cols_log_norm=["transaction_amt"],
+        cols_identity=[],
+        print_dataset_info=False,
+    )
+    preprocessor_click = PandasDataPreprocessor(
+        col_id='user_id',
+        cols_event_time='event_time',
+        time_transformation='none',
+        cols_category=['cat_id', 'level_0', 'level_1', 'level_2'],
+        cols_log_norm=[],
+        cols_identity=['new_uid'],
+        print_dataset_info=False,
+    )
+    features_trx_train = dict(trx_to_torch(preprocessor_trx.fit_transform(df_trx_train)))
+    print(f'Trx features prepared')
+    features_click_train = dict(click_to_torch(preprocessor_click.fit_transform(df_click_train)))
+    print(f'Click features prepared')
+    del df_trx_train
+    del df_click_train
+    gc.collect()
+    # trainer.save_checkpoint('nn_distance_coles_model.cpt', weights_only=True)
+    with open('preprocessor_trx.p', 'wb') as f:
+        pickle.dump(preprocessor_trx, f)
+    with open('preprocessor_click.p', 'wb') as f:
+        pickle.dump(preprocessor_click, f)
+    return df_matching_train, features_click_train, features_trx_train
 
 
 def pretrain_mlm_trx(features_trx_train):
@@ -97,7 +146,7 @@ def pretrain_mlm_trx(features_trx_train):
             )],
             n_sample=1,
         ),
-        collate_fn=paired_collate_fn,
+        collate_fn=PairedDataset.collate_fn,
         shuffle=False,
         num_workers=12,
         batch_size=128,
@@ -112,7 +161,7 @@ def pretrain_mlm_trx(features_trx_train):
     trx_amnt_quantiles = torch.quantile(torch.unique(v), torch.linspace(0, 1, 100))
 
     mlm_model_trx = MLMPretrainModuleTrx(
-        params=config_mlm,
+        params=CONFIG_MLM,
         lr=0.001, weight_decay=0,
         max_lr=0.001, pct_start=9000 / 2 / 10000, total_steps=10000,
         trx_amnt_quantiles=trx_amnt_quantiles,
@@ -150,7 +199,7 @@ def pretrain_mlm_click(features_click_train):
             )],
             n_sample=1,
         ),
-        collate_fn=paired_collate_fn,
+        collate_fn=PairedDataset.collate_fn,
         shuffle=False,
         num_workers=12,
         batch_size=128,
@@ -158,7 +207,7 @@ def pretrain_mlm_click(features_click_train):
     )
 
     mlm_model_click = MLMPretrainModuleClick(
-        params=config_mlm,
+        params=CONFIG_MLM,
         lr=0.001, weight_decay=0,
         max_lr=0.001, pct_start=9000 / 2 / 10000, total_steps=10000,
     )
@@ -187,8 +236,8 @@ def pretrain_mlm_click(features_click_train):
 def train_qsm(df_matching_train, features_trx_train, features_click_train, model_n):
     batch_size = 128
     train_dl = torch.utils.data.DataLoader(
-        PairedZeroDataset(
-            pd.concat([df_matching_train], axis=0)[lambda x: x['rtk'].ne('0')].values,
+        PairedFullDataset(
+            df_matching_train[lambda x: x['rtk'].ne('0')].values,
             data=[
                 features_trx_train,
                 features_click_train,
@@ -199,7 +248,7 @@ def train_qsm(df_matching_train, features_trx_train, features_click_train, model
             ],
             n_sample=2,
         ),
-        collate_fn=PairedZeroDataset.collate_fn,
+        collate_fn=PairedFullDataset.collate_fn,
         drop_last=True,
         shuffle=True,
         num_workers=24,
@@ -211,15 +260,7 @@ def train_qsm(df_matching_train, features_trx_train, features_click_train, model
     mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint('pretrain_click.cpt')
     pl.seed_everything(random.randint(1, 2**16 - 1))
     sup_model = PairedModule(
-        ConfigFactory.parse_string('''
-        common_trx_size: 128
-        rnn: {
-          type: gru,
-          hidden_size: 256,
-          bidir: false,
-          trainable_starter: static
-        }
-    '''),
+        CONFIG_QSM,
         k=100 * batch_size // 3000,
         lr=0.0022, weight_decay=0,
         max_lr=0.0018, pct_start=1100 / 6000, total_steps=6000,
@@ -244,47 +285,8 @@ def train_qsm(df_matching_train, features_trx_train, features_click_train, model
 
 
 def main():
-    folds_count = len(glob('../data/train_matching_*.csv'))
-    print(f'folds_count = {folds_count}')
-
-    df_matching_train = pd.concat([pd.read_csv(f'../data/train_matching_{i}.csv') for i in range(folds_count)])
-    df_trx_train = pd.concat([trx_types(pd.read_csv(f'../data/transactions_{i}.csv')) for i in range(folds_count)])
-    df_click_train = pd.concat([click_types(pd.read_csv(f'../data/clickstream_{i}.csv')) for i in range(folds_count)])
-    print(f'Loaded csv files')
-
-    preprocessor_trx = PandasDataPreprocessor(
-        col_id='user_id',
-        cols_event_time='event_time',
-        time_transformation='none',
-        cols_category=["mcc_code", "currency_rk"],
-        cols_log_norm=["transaction_amt"],
-        cols_identity=[],
-        print_dataset_info=False,
-    )
-    preprocessor_click = PandasDataPreprocessor(
-        col_id='user_id',
-        cols_event_time='event_time',
-        time_transformation='none',
-        cols_category=['cat_id', 'level_0', 'level_1', 'level_2'],
-        cols_log_norm=[],
-        cols_identity=['new_uid'],
-        print_dataset_info=False,
-    )
-
-    features_trx_train = dict(trx_to_torch(preprocessor_trx.fit_transform(df_trx_train)))
-    print(f'Trx features prepared')
-    features_click_train = dict(click_to_torch(preprocessor_click.fit_transform(df_click_train)))
-    print(f'Click features prepared')
-
-    del df_trx_train
-    del df_click_train
-    gc.collect()
-
-    # trainer.save_checkpoint('nn_distance_coles_model.cpt', weights_only=True)
-    with open('preprocessor_trx.p', 'wb') as f:
-        pickle.dump(preprocessor_trx, f)
-    with open('preprocessor_click.p', 'wb') as f:
-        pickle.dump(preprocessor_click, f)
+    valid_fold_id = int(sys.argv[1]) if len(sys.argv) == 2 else None
+    df_matching_train, features_click_train, features_trx_train = load_data(valid_fold_id)
 
     pretrain_mlm_trx(features_trx_train)
     pretrain_mlm_click(features_click_train)

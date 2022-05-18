@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torchmetrics
 from torchmetrics import Metric
 import pytorch_lightning as pl
 
@@ -201,3 +202,18 @@ class ValidationSplittingCallback(pl.Callback):
         mrr = torch.where(true_ranks <= self.k, 1 / true_ranks, torch.zeros(1, device=self.device)).mean()
         r1 = 2 * mrr * precision / (mrr + precision)
         return precision, mrr, r1
+
+
+class MeanLoss(torchmetrics.Metric):
+    def __init__(self, **params):
+        super().__init__(**params)
+
+        self.add_state('_sum', torch.tensor([0.0]))
+        self.add_state('_cnt', torch.tensor([0]))
+
+    def update(self, x):
+        self._sum += x.sum()
+        self._cnt += x.numel()
+
+    def compute(self):
+        return self._sum / self._cnt.float()

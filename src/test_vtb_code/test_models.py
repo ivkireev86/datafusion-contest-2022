@@ -1,8 +1,8 @@
 import torch
 
-from dltranz.trx_encoder import PaddedBatch
-from src.vtb_code import ChannelDropout, MarginLoss
-from src.vtb_code import SemiHardTripletDualSelector
+from ptls.trx_encoder import PaddedBatch
+from vtb_code.models import ChannelDropout, MarginLoss
+from vtb_code.models import SemiHardTripletDualSelector
 
 
 def test_channel_dropout():
