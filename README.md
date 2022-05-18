@@ -1,6 +1,8 @@
-# Data Fusion Contest 2022. Matching Task
+# Data Fusion Contest 2022. 1-st place on the Matching Task.
 
 [Link to competition](https://ods.ai/competitions/data-fusion2022-main-challenge)
+
+Our solution acheived **1-st** place on the private liderboard.
 
 # Overview
 
