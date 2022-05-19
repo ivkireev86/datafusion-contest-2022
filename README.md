@@ -6,6 +6,9 @@ Our solution acheived **1-st** place on the private liderboard.
 
 # Overview
 
+## Validation
+We split train data at 6 folds. So we have about 3000 pairs in fold. This is similar as contest validation and test set.
+
 ## Model
 
 This is neural network based solution. We use [pytorch-lifestream](https://github.com/dllllb/pytorch-lifestream)
@@ -34,8 +37,17 @@ TransformerEncoder predict masked TrxEncoder vectors.
 
 We use ensembling in final solution. We train 11 models and average paired distances from output.
 
-## Validation
-We split train data at 6 folds. So we have about 3000 pairs in fold. This is similar as contest validation and test set.
+## Timing
+
+We used Tesla V100 with 32Gb. The same settings also works with 16Gb.
+
+| Stage                                                |    Time |
+|:---------------------------------------------------- | -------:|
+| Full train time with 5 models in ensemble            | 142 min |
+| - Data load and preprocessing                        |   8 min |
+| - Pretrain TrxEncoder (both trx and click)           |  19 min |
+| - Train one SeqEncoder (there are 5 in ensemble)     |  23 min |
+| Full inference time (2930 bank uids, 2445 rtk uids)  |   2 min |
 
 # How to reproduce 
 

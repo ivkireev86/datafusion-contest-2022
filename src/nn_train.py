@@ -106,8 +106,10 @@ def pretrain_mlm_trx(features_trx_train, cfg):
     )
     model_version_trx = trainer.logger.version
     print('Trx pretrain start')
-    print('baseline all:  {:.3f}'.format(np.log(mlm_model_trx.hparams.params.mlm.neg_count_all + 1)))
-    print('baseline self: {:.3f}'.format(np.log(mlm_model_trx.hparams.params.mlm.neg_count_self + 1)))
+    print('baseline loss all + self:  {:.3f} + {:.3f}'.format(
+        np.log(mlm_model_trx.hparams.params.mlm.neg_count_all + 1),
+        np.log(mlm_model_trx.hparams.params.mlm.neg_count_self + 1)
+    ))
     print(f'version = {model_version_trx}')
     trainer.fit(mlm_model_trx, train_dl_mlm_trx)
     trainer.save_checkpoint(f'{cfg.objects_path}/pretrain_trx.cpt', weights_only=True)
@@ -151,9 +153,10 @@ def pretrain_mlm_click(features_click_train, cfg):
     )
     model_version_click = trainer.logger.version
     print('Click pretrain start')
-    print('baseline all:  {:.3f}'.format(np.log(mlm_model_click.hparams.params.mlm.neg_count_all + 1)))
-    print('baseline self: {:.3f}'.format(np.log(mlm_model_click.hparams.params.mlm.neg_count_self + 1)))
-    print(f'version = {model_version_click}')
+    print('baseline loss all + self:  {:.3f} + {:.3f}'.format(
+        np.log(mlm_model_click.hparams.params.mlm.neg_count_all + 1),
+        np.log(mlm_model_click.hparams.params.mlm.neg_count_self + 1)
+    ))
     trainer.fit(mlm_model_click, train_dl_mlm_click)
     trainer.save_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt', weights_only=True)
     print('Click pretrain done')
