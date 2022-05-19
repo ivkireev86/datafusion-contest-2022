@@ -79,13 +79,8 @@ def load_data(cfg):
     return uid_banks, uid_rtk, valid_dl_trx, valid_dl_click
 
 
-def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, cfg):
-    mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint(f'{cfg.objects_path}/pretrain_trx.cpt')
-    mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt')
-    pl_module = PairedModule.load_from_checkpoint(model_path,
-                                                  mlm_model_trx=mlm_model_trx,
-                                                  mlm_model_click=mlm_model_click,
-                                                  )
+def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click):
+    pl_module = PairedModule.load_from_checkpoint(model_path)
     trx_model = PairedModuleTrxInference(pl_module)
     click_model = PairedModuleClickInference(pl_module)
     trainer = pl.Trainer(gpus=1)
@@ -132,7 +127,7 @@ def main(cfg):
     if len(model_list) == 0:
         raise FileNotFoundError('No models found')
     for i, model_path in enumerate(model_list):
-        z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, cfg)
+        z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click)
         res.append(z_out)
         print(f'Cross scores done [{i}: "{model_path}"]')
 

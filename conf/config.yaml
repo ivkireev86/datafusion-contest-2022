@@ -7,7 +7,7 @@ ensemble_size: 5
 data_path: ../data
 objects_path: ../objects
 
-config_mlm:
+model_config:
     common_trx_size: 256
     transf:
         nhead: 4
@@ -81,9 +81,8 @@ config_mlm:
           numeric_values:
             c_cnt: log
 
-config_qsm:
-  rnn:
-    type: gru
-    hidden_size: 256
-    bidir: false
-    trainable_starter: static
+    rnn:
+      type: gru
+      hidden_size: 256
+      bidir: false
+      trainable_starter: static

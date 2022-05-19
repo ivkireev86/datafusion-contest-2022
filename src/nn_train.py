@@ -87,7 +87,7 @@ def pretrain_mlm_trx(features_trx_train, cfg):
     trx_amnt_quantiles = torch.quantile(torch.unique(v), torch.linspace(0, 1, 100))
 
     mlm_model_trx = MLMPretrainModuleTrx(
-        params=cfg.config_mlm,
+        params=cfg.model_config,
         lr=0.001, weight_decay=0,
         max_lr=0.001, pct_start=9000 / 2 / 10000, total_steps=10000,
         trx_amnt_quantiles=trx_amnt_quantiles,
@@ -135,7 +135,7 @@ def pretrain_mlm_click(features_click_train, cfg):
     )
 
     mlm_model_click = MLMPretrainModuleClick(
-        params=cfg.config_mlm,
+        params=cfg.model_config,
         lr=0.001, weight_decay=0,
         max_lr=0.001, pct_start=9000 / 2 / 10000, total_steps=10000,
     )
@@ -189,13 +189,13 @@ def train_qsm(df_matching_train, features_trx_train, features_click_train, model
     mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt')
     pl.seed_everything(random.randint(1, 2**16 - 1))
     sup_model = PairedModule(
-        cfg.config_qsm,
+        cfg.model_config, trx_amnt_quantiles=mlm_model_trx.seq_encoder.trx_amnt_quantiles,
         k=100 * batch_size // 3000,
         lr=0.0022, weight_decay=0,
         max_lr=0.0018, pct_start=1100 / 6000, total_steps=6000,
         beta=0.2 / 1.4, neg_count=120,
-        mlm_model_trx=mlm_model_trx, mlm_model_click=mlm_model_click,
     )
+    sup_model.load_pretrained(mlm_model_trx.seq_encoder, mlm_model_click.seq_encoder)
 
     trainer = pl.Trainer(
         gpus=1,

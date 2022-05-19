@@ -60,6 +60,45 @@ class PBL2Norm(torch.nn.Module):
                            x.seq_lens)
 
 
+class PBLayerNorm(torch.nn.LayerNorm):
+    def forward(self, x: PaddedBatch):
+        return PaddedBatch(super().forward(x.payload), x.seq_lens)
+
+
+class TransactionEncoder(torch.nn.Module):
+    def __init__(self, params, trx_amnt_quantiles):
+        super().__init__()
+
+        self.trx_amnt_quantiles = trx_amnt_quantiles
+
+        t = TrxEncoder(params.trx_seq.trx_encoder)
+        self.seq_encoder = torch.nn.Sequential(
+            CustomTrxTransform(trx_amnt_quantiles=trx_amnt_quantiles),
+            DateFeaturesTransform(),
+            t, PBLinear(t.output_size, params.common_trx_size),
+            PBL2Norm(params.mlm.beta),
+        )
+
+    def forward(self, x):
+        return self.seq_encoder(x)
+
+
+class ClickEncoder(torch.nn.Module):
+    def __init__(self, params):
+        super().__init__()
+
+        t = TrxEncoder(params.click_seq.trx_encoder)
+        self.seq_encoder = torch.nn.Sequential(
+            CustomClickTransform(),
+            DateFeaturesTransform(),
+            t, PBLinear(t.output_size, params.common_trx_size),
+            PBL2Norm(params.mlm.beta),
+        )
+
+    def forward(self, x):
+        return self.seq_encoder(x)
+
+
 class MLMPretrainModule(pl.LightningModule):
     def __init__(self, data_type, params,
                  lr, weight_decay,
@@ -232,15 +271,7 @@ class MLMPretrainModuleTrx(MLMPretrainModule):
                          max_lr=max_lr, pct_start=pct_start, total_steps=total_steps,
                          )
         self.save_hyperparameters()
-
-        common_trx_size = self.hparams.params.common_trx_size
-        t = TrxEncoder(self.hparams.params.trx_seq.trx_encoder)
-        self.seq_encoder = torch.nn.Sequential(
-            CustomTrxTransform(trx_amnt_quantiles=trx_amnt_quantiles),
-            DateFeaturesTransform(),
-            t, PBLinear(t.output_size, common_trx_size),
-            PBL2Norm(self.hparams.params.mlm.beta),
-        )
+        self.seq_encoder = TransactionEncoder(params, trx_amnt_quantiles)
 
 
 class MLMPretrainModuleClick(MLMPretrainModule):
@@ -254,47 +285,32 @@ class MLMPretrainModuleClick(MLMPretrainModule):
                          max_lr=max_lr, pct_start=pct_start, total_steps=total_steps,
                          )
         self.save_hyperparameters()
-
-        common_trx_size = self.hparams.params.common_trx_size
-        t = TrxEncoder(self.hparams.params.click_seq.trx_encoder)
-        self.seq_encoder = torch.nn.Sequential(
-            CustomClickTransform(),
-            DateFeaturesTransform(),
-            t, PBLinear(t.output_size, common_trx_size),
-            PBL2Norm(self.hparams.params.mlm.beta),
-        )
-
-
-class PBLayerNorm(torch.nn.LayerNorm):
-    def forward(self, x: PaddedBatch):
-        return PaddedBatch(super().forward(x.payload), x.seq_lens)
+        self.seq_encoder = ClickEncoder(params)
 
 
 class PairedModule(pl.LightningModule):
-    def __init__(self, params, k,
+    def __init__(self, params, trx_amnt_quantiles, k,
                  lr, weight_decay,
                  max_lr, pct_start, total_steps,
                  beta, neg_count,
-                 mlm_model_trx, mlm_model_click,
                  ):
         super().__init__()
         self.save_hyperparameters(ignore=['mlm_model_trx', 'mlm_model_click'])
 
-        common_trx_size = mlm_model_trx.hparams.params.common_trx_size
+        common_trx_size = params.common_trx_size
         self.rnn_enc = torch.nn.Sequential(
             RnnEncoder(common_trx_size, params.rnn),
             LastStepEncoder(),
             #             NormEncoder(),
         )
         self._seq_encoder_trx = torch.nn.Sequential(
-            mlm_model_trx.seq_encoder,
+            TransactionEncoder(params, trx_amnt_quantiles),
             PBLayerNorm(common_trx_size),
         )
         self._seq_encoder_click = torch.nn.Sequential(
-            mlm_model_click.seq_encoder,
+            ClickEncoder(params),
             PBLayerNorm(common_trx_size),
         )
-        # self.mlm_model_click = mlm_model_click
 
         self.cls = torch.nn.Sequential(
             L2Scorer(),
@@ -304,6 +320,10 @@ class PairedModule(pl.LightningModule):
         self.train_mrr = MeanReciprocalRankK(k=k, compute_on_step=False)
         self.valid_precision = PrecisionK(k=k, compute_on_step=False)
         self.valid_mrr = MeanReciprocalRankK(k=k, compute_on_step=False)
+
+    def load_pretrained(self, trx, click):
+        self._seq_encoder_trx[0].load_state_dict(trx.state_dict())
+        self._seq_encoder_click[0].load_state_dict(click.state_dict())
 
     def seq_encoder_trx(self, x):
         x = self._seq_encoder_trx(x)
