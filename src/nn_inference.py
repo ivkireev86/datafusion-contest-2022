@@ -11,9 +11,7 @@ from ptls.data_load import augmentation_chain
 from ptls.data_load.augmentations.seq_len_limit import SeqLenLimit
 
 from vtb_code.data import PairedDataset, DropDuplicate
-from vtb_code.model import (
-    MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule, PairedModuleTrxInference, PairedModuleClickInference,
-)
+from vtb_code.model import PairedModule, PairedModuleTrxInference, PairedModuleClickInference
 from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
