@@ -377,3 +377,19 @@ class PairedModule(pl.LightningModule):
         self.log('train_metrics/mrr', self.train_mrr, prog_bar=True)
 
 
+class PairedModuleTrxInference(pl.LightningModule):
+    def __init__(self, pl_module):
+        super().__init__()
+        self.model = torch.nn.Sequential(pl_module._seq_encoder_trx, pl_module.rnn_enc)
+
+    def forward(self, x):
+        return self.model(x[0][0])
+
+
+class PairedModuleClickInference(pl.LightningModule):
+    def __init__(self, pl_module):
+        super().__init__()
+        self.model = torch.nn.Sequential(pl_module._seq_encoder_click, pl_module.rnn_enc)
+
+    def forward(self, x):
+        return self.model(x[0][0])
