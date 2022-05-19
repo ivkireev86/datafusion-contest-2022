@@ -88,32 +88,3 @@ def test_validation_callback_logits_to_metrics():
     np.testing.assert_allclose(precision, 1 / 2)
     np.testing.assert_allclose(mrr, 5 / 24)
     np.testing.assert_allclose(r1, 5 / 17)
-
-
-def test_validation_callback_with_samples():
-    z_out = torch.tensor([
-        [2, 2, 2, 2, 2, 2, 2, 2],  # 0 0   0 0   1 1   0 0
-        [2, 2, 2, 2, 2, 2, 2, 2],  # 0 0   0 0   1 1   0 0
-        [2, 2, 2, 2, 2, 2, 2, 2],  # 1 1   0 0   0 0   0 0
-        [2, 2, 2, 2, 2, 2, 2, 2],  # 1 1   0 0   0 0   0 0
-        [2, 2, 2, 2, 2, 2, 2, 2],  # 0 0   0 0   0 0   1 1
-        [2, 2, 2, 2, 2, 2, 2, 2],  # 0 0   0 0   0 0   1 1
-    ]).float()
-    vc = ValidationCallback(
-        v_trx=unittest.mock.Mock(),
-        v_click=unittest.mock.Mock(),
-        target=pd.DataFrame({
-            'bank': ['a1', 'a2', 'a3'],
-            'rtk': ['b3', 'b1', 'b4'],
-        }),
-        device='cpu', device_main='cpu',
-        k=3,
-    )
-    vc.v_trx.dataset.pairs = np.array(['a1', 'a1', 'a2', 'a2', 'a3', 'a3']).reshape(-1, 1)
-    vc.v_click.dataset.pairs = np.array(['b1', 'b1', 'b2', 'b2', 'b3', 'b3', 'b4', 'b4']).reshape(-1, 1)
-
-    precision, mrr, r1 = vc.logits_to_metrics(z_out)
-
-    np.testing.assert_allclose(precision, 1 / 2)
-    np.testing.assert_allclose(mrr, 5 / 24)
-    np.testing.assert_allclose(r1, 5 / 17)
