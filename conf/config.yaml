@@ -1,0 +1,89 @@
+defaults:
+  - override hydra/job_logging: disabled
+
+valid_fold_id: ???
+
+ensemble_size: 5
+data_path: ../data
+objects_path: ../objects
+
+config_mlm:
+    common_trx_size: 256
+    transf:
+        nhead: 4
+        dim_feedforward: 1024
+        dropout: 0.1
+        num_layers: 3
+        norm: false
+        max_len: 6000
+        use_pe: true
+    mlm:
+        replace_proba: 0.1
+        neg_count_all: 64
+        neg_count_self: 8
+        beta: 10
+
+    trx_seq:
+        trx_encoder:
+          use_batch_norm_with_lens: false
+          norm_embeddings: false
+          embeddings_noise: 0.000
+          embeddings:
+            mcc_code:
+              in: 350
+              out: 64
+            currency_rk:
+              in: 10
+              out: 4
+            transaction_amt_q:
+              in: 110
+              out: 8
+            hour:
+              in: 30
+              out: 16
+            weekday:
+              in: 10
+              out: 4
+            day_diff:
+              in: 15
+              out: 8
+          numeric_values:
+            transaction_amt: identity
+            c_cnt: log
+
+    click_seq:
+        trx_encoder:
+          use_batch_norm_with_lens: false
+          norm_embeddings: false
+          embeddings_noise: 0.000
+          embeddings:
+            cat_id:
+              in: 400
+              out: 64
+            level_0:
+              in: 400
+              out: 16
+            level_1:
+              in: 400
+              out: 8
+            level_2:
+              in: 400
+              out: 4
+            hour:
+              in: 30
+              out: 16
+            weekday:
+              in: 10
+              out: 4
+            day_diff:
+              in: 15
+              out: 8
+          numeric_values:
+            c_cnt: log
+
+config_qsm:
+  rnn:
+    type: gru
+    hidden_size: 256
+    bidir: false
+    trainable_starter: static

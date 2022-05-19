@@ -1,6 +1,6 @@
 import gc
+import hydra
 import pickle
-import sys
 from glob import glob
 
 import numpy as np
@@ -14,16 +14,18 @@ from vtb_code.model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedM
 from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
-def load_data(valid_fold_id):
+def load_data(cfg):
+    valid_fold_id = cfg.valid_fold_id
+
     print(f'Loading...')
-    df_trx = pd.read_csv(f'../data/transactions_{valid_fold_id}.csv')
-    df_click = pd.read_csv(f'../data/clickstream_{valid_fold_id}.csv')
+    df_trx = pd.read_csv(f'{cfg.data_path}/transactions_{valid_fold_id}.csv')
+    df_click = pd.read_csv(f'{cfg.data_path}/clickstream_{valid_fold_id}.csv')
     print(f'Loaded csv files. {len(df_trx)} transactions, {len(df_click)} clicks')
     df_trx = trx_types(df_trx)
     df_click = click_types(df_click)
-    with open('preprocessor_trx.p', 'rb') as f:
+    with open(f'{cfg.objects_path}/preprocessor_trx.p', 'rb') as f:
         preprocessor_trx = pickle.load(f)
-    with open('preprocessor_click.p', 'rb') as f:
+    with open(f'{cfg.objects_path}/preprocessor_click.p', 'rb') as f:
         preprocessor_click = pickle.load(f)
     print(f'Loaded preprocessor files')
 
@@ -74,9 +76,9 @@ def load_data(valid_fold_id):
     return uid_banks, uid_rtk, valid_dl_trx, valid_dl_click
 
 
-def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click):
-    mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint('pretrain_trx.cpt')
-    mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint('pretrain_click.cpt')
+def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, cfg):
+    mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint(f'{cfg.objects_path}/pretrain_trx.cpt')
+    mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt')
     pl_module = PairedModule.load_from_checkpoint(model_path,
                                                   mlm_model_trx=mlm_model_trx,
                                                   mlm_model_click=mlm_model_click,
@@ -121,16 +123,16 @@ def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click):
     return z_out
 
 
-def main():
-    valid_fold_id = int(sys.argv[1])
-    uid_banks, uid_rtk, valid_dl_trx, valid_dl_click = load_data(valid_fold_id)
+@hydra.main(version_base='1.2', config_path="../conf", config_name="config")
+def main(cfg):
+    uid_banks, uid_rtk, valid_dl_trx, valid_dl_click = load_data(cfg)
 
     res = []
-    model_list = sorted(glob('nn_distance_coles_model_*.cpt'))
+    model_list = sorted(glob(f'{cfg.objects_path}/nn_distance_coles_model_*.cpt'))
     if len(model_list) == 0:
         raise FileNotFoundError('No models found')
     for i, model_path in enumerate(model_list):
-        z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click)
+        z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, cfg)
         res.append(z_out)
         print(f'Cross scores done [{i}: "{model_path}"]')
 
@@ -151,7 +153,7 @@ def main():
 
     submission_final = np.array(submission_final, dtype=object)
     print(submission_final.shape)
-    np.savez('submission_final.npz', submission_final)
+    np.savez(f'{cfg.objects_path}/submission_final.npz', submission_final)
 
 
 if __name__ == "__main__":

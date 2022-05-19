@@ -1,7 +1,7 @@
 import gc
+import hydra
 import pickle
 import random
-import sys
 from glob import glob
 
 import numpy as np
@@ -11,96 +11,22 @@ import torch
 from ptls.data_load import augmentation_chain
 from ptls.data_load.augmentations.random_slice import RandomSlice
 from ptls.data_preprocessing.pandas_preprocessor import PandasDataPreprocessor
-from pyhocon import ConfigFactory
 
 from vtb_code.model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule
 from vtb_code.data import PairedDataset, PairedFullDataset, DropDuplicate
 from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
-ENSEMBLE_SIZE = 11
-CONFIG_MLM = ConfigFactory.parse_string('''
-    common_trx_size: 256
-    transf: {
-        nhead: 4
-        dim_feedforward: 1024
-        dropout: 0.1
-        num_layers: 3
-        norm: false
-        max_len: 6000
-        use_pe: true
-    }
-    mlm: {
-        replace_proba: 0.1
-        neg_count_all: 64
-        neg_count_self: 8
-        beta: 10
-    }
-    trx_seq: {
-        trx_encoder: {
-          use_batch_norm_with_lens: false
-          norm_embeddings: false,
-          embeddings_noise: 0.000,
-          embeddings: {
-            mcc_code: {in: 350, out: 64},
-            currency_rk: {in: 10, out: 4}
-            transaction_amt_q: {in: 110, out: 8}
-
-            hour: {in: 30, out: 16}
-            weekday: {in: 10, out: 4}
-            day_diff: {in: 15, out: 8}
-          },
-          numeric_values: {
-            transaction_amt: identity
-            c_cnt: log
-          }
-          was_logified: false
-          log_scale_factor: 1.0
-        },
-    }
-    click_seq: {
-        trx_encoder: {
-          use_batch_norm_with_lens: false
-          norm_embeddings: false,
-          embeddings_noise: 0.000,
-          embeddings: {
-            cat_id: {in: 400, out: 64},
-            level_0: {in: 400, out: 16}
-            level_1: {in: 400, out: 8}
-            level_2: {in: 400, out: 4}
-
-            hour: {in: 30, out: 16}
-            weekday: {in: 10, out: 4}
-            day_diff: {in: 15, out: 8}
-          },
-          numeric_values: {
-            c_cnt: log
-          }
-          was_logified: false
-          log_scale_factor: 1.0
-        },
-    }
-''')
-CONFIG_QSM = ConfigFactory.parse_string('''
-        common_trx_size: 128
-        rnn: {
-          type: gru,
-          hidden_size: 256,
-          bidir: false,
-          trainable_starter: static
-        }
-    ''')
-
-
-def load_data(valid_fold_id):
-    folds_count = len(glob('../data/train_matching_*.csv'))
+def load_data(cfg):
+    valid_fold_id = cfg.valid_fold_id
+    folds_count = len(glob(f'{cfg.data_path}/train_matching_*.csv'))
     train_folds = [i for i in range(folds_count) if valid_fold_id is not None and i != valid_fold_id]
     print(f'Total folds_count = {folds_count}, used {len(train_folds)}')
     print(f'Loading...')
 
-    df_matching_train = pd.concat([pd.read_csv(f'../data/train_matching_{i}.csv') for i in train_folds])
-    df_trx_train = pd.concat([trx_types(pd.read_csv(f'../data/transactions_{i}.csv')) for i in train_folds])
-    df_click_train = pd.concat([click_types(pd.read_csv(f'../data/clickstream_{i}.csv')) for i in train_folds])
+    df_matching_train = pd.concat([pd.read_csv(f'{cfg.data_path}/train_matching_{i}.csv') for i in train_folds])
+    df_trx_train = pd.concat([trx_types(pd.read_csv(f'{cfg.data_path}/transactions_{i}.csv')) for i in train_folds])
+    df_click_train = pd.concat([click_types(pd.read_csv(f'{cfg.data_path}/clickstream_{i}.csv')) for i in train_folds])
     print(f'Loaded csv files')
     preprocessor_trx = PandasDataPreprocessor(
         col_id='user_id',
@@ -128,14 +54,14 @@ def load_data(valid_fold_id):
     del df_click_train
     gc.collect()
     # trainer.save_checkpoint('nn_distance_coles_model.cpt', weights_only=True)
-    with open('preprocessor_trx.p', 'wb') as f:
+    with open(f'{cfg.objects_path}/preprocessor_trx.p', 'wb') as f:
         pickle.dump(preprocessor_trx, f)
-    with open('preprocessor_click.p', 'wb') as f:
+    with open(f'{cfg.objects_path}/preprocessor_click.p', 'wb') as f:
         pickle.dump(preprocessor_click, f)
     return df_matching_train, features_click_train, features_trx_train
 
 
-def pretrain_mlm_trx(features_trx_train):
+def pretrain_mlm_trx(features_trx_train, cfg):
     train_dl_mlm_trx = torch.utils.data.DataLoader(
         PairedDataset(
             np.sort(np.array(list(features_trx_train.keys()))).reshape(-1, 1),
@@ -147,7 +73,7 @@ def pretrain_mlm_trx(features_trx_train):
             n_sample=1,
         ),
         collate_fn=PairedDataset.collate_fn,
-        shuffle=False,
+        shuffle=True,
         num_workers=12,
         batch_size=128,
         persistent_workers=True,
@@ -161,7 +87,7 @@ def pretrain_mlm_trx(features_trx_train):
     trx_amnt_quantiles = torch.quantile(torch.unique(v), torch.linspace(0, 1, 100))
 
     mlm_model_trx = MLMPretrainModuleTrx(
-        params=CONFIG_MLM,
+        params=cfg.config_mlm,
         lr=0.001, weight_decay=0,
         max_lr=0.001, pct_start=9000 / 2 / 10000, total_steps=10000,
         trx_amnt_quantiles=trx_amnt_quantiles,
@@ -180,15 +106,15 @@ def pretrain_mlm_trx(features_trx_train):
     )
     model_version_trx = trainer.logger.version
     print('Trx pretrain start')
-    print('baseline all:  {:.3f}'.format(np.log(mlm_model_trx.hparams.params['mlm.neg_count_all'] + 1)))
-    print('baseline self: {:.3f}'.format(np.log(mlm_model_trx.hparams.params['mlm.neg_count_self'] + 1)))
+    print('baseline all:  {:.3f}'.format(np.log(mlm_model_trx.hparams.params.mlm.neg_count_all + 1)))
+    print('baseline self: {:.3f}'.format(np.log(mlm_model_trx.hparams.params.mlm.neg_count_self + 1)))
     print(f'version = {model_version_trx}')
     trainer.fit(mlm_model_trx, train_dl_mlm_trx)
-    trainer.save_checkpoint('pretrain_trx.cpt', weights_only=True)
+    trainer.save_checkpoint(f'{cfg.objects_path}/pretrain_trx.cpt', weights_only=True)
     print('Trx pretrain done')
 
 
-def pretrain_mlm_click(features_click_train):
+def pretrain_mlm_click(features_click_train, cfg):
     train_dl_mlm_click = torch.utils.data.DataLoader(
         PairedDataset(
             np.sort(np.array(list(features_click_train.keys()))).reshape(-1, 1),
@@ -200,14 +126,14 @@ def pretrain_mlm_click(features_click_train):
             n_sample=1,
         ),
         collate_fn=PairedDataset.collate_fn,
-        shuffle=False,
+        shuffle=True,
         num_workers=12,
         batch_size=128,
         persistent_workers=True,
     )
 
     mlm_model_click = MLMPretrainModuleClick(
-        params=CONFIG_MLM,
+        params=cfg.config_mlm,
         lr=0.001, weight_decay=0,
         max_lr=0.001, pct_start=9000 / 2 / 10000, total_steps=10000,
     )
@@ -225,15 +151,15 @@ def pretrain_mlm_click(features_click_train):
     )
     model_version_click = trainer.logger.version
     print('Click pretrain start')
-    print('baseline all:  {:.3f}'.format(np.log(mlm_model_click.hparams.params['mlm.neg_count_all'] + 1)))
-    print('baseline self: {:.3f}'.format(np.log(mlm_model_click.hparams.params['mlm.neg_count_self'] + 1)))
+    print('baseline all:  {:.3f}'.format(np.log(mlm_model_click.hparams.params.mlm.neg_count_all + 1)))
+    print('baseline self: {:.3f}'.format(np.log(mlm_model_click.hparams.params.mlm.neg_count_self + 1)))
     print(f'version = {model_version_click}')
     trainer.fit(mlm_model_click, train_dl_mlm_click)
-    trainer.save_checkpoint('pretrain_click.cpt', weights_only=True)
+    trainer.save_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt', weights_only=True)
     print('Click pretrain done')
 
 
-def train_qsm(df_matching_train, features_trx_train, features_click_train, model_n):
+def train_qsm(df_matching_train, features_trx_train, features_click_train, model_n, cfg):
     batch_size = 128
     train_dl = torch.utils.data.DataLoader(
         PairedFullDataset(
@@ -256,11 +182,11 @@ def train_qsm(df_matching_train, features_trx_train, features_click_train, model
         persistent_workers=True,
     )
 
-    mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint('pretrain_trx.cpt')
-    mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint('pretrain_click.cpt')
+    mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint(f'{cfg.objects_path}/pretrain_trx.cpt')
+    mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt')
     pl.seed_everything(random.randint(1, 2**16 - 1))
     sup_model = PairedModule(
-        CONFIG_QSM,
+        cfg.config_qsm,
         k=100 * batch_size // 3000,
         lr=0.0022, weight_decay=0,
         max_lr=0.0018, pct_start=1100 / 6000, total_steps=6000,
@@ -280,18 +206,18 @@ def train_qsm(df_matching_train, features_trx_train, features_click_train, model
     )
     print('Train qsm start')
     trainer.fit(sup_model, train_dl)
-    trainer.save_checkpoint(f'nn_distance_coles_model_{model_n}.cpt', weights_only=True)
+    trainer.save_checkpoint(f'{cfg.objects_path}/nn_distance_coles_model_{model_n}.cpt', weights_only=True)
     print(f'Train qsm [{model_n}] done')
 
 
-def main():
-    valid_fold_id = int(sys.argv[1]) if len(sys.argv) == 2 else None
-    df_matching_train, features_click_train, features_trx_train = load_data(valid_fold_id)
+@hydra.main(version_base='1.2', config_path="../conf", config_name="config")
+def main(cfg):
+    df_matching_train, features_click_train, features_trx_train = load_data(cfg)
 
-    pretrain_mlm_trx(features_trx_train)
-    pretrain_mlm_click(features_click_train)
-    for i in range(ENSEMBLE_SIZE):
-        train_qsm(df_matching_train, features_trx_train, features_click_train, i)
+    pretrain_mlm_trx(features_trx_train, cfg)
+    pretrain_mlm_click(features_click_train, cfg)
+    for i in range(cfg.ensemble_size):
+        train_qsm(df_matching_train, features_trx_train, features_click_train, i, cfg)
 
 
 if __name__ == '__main__':

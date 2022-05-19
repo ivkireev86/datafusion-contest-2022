@@ -57,14 +57,14 @@ python src/split_folds.py
 
 cd src/
 
-# Pipeline with validation, valid_fold_id shold be provided as parameter
-python nn_train.py 5
-python nn_inference.py 5
-python nn_evaluation.py 5
+# Pipeline with validation, valid_fold_id from [0, 1, 2, 3, 4, 5] shold be provided as parameter
+python nn_train.py valid_fold_id=4
+python nn_inference.py valid_fold_id=4
+python nn_evaluation.py valid_fold_id=4
 
 
 # Pipeline without validation, train model before submit
-python nn_distance_train.py
+python nn_distance_train.py valid_fold_id=None
 # there are no data for validation, all data was in train
 # python nn_distance_inference.py
 
