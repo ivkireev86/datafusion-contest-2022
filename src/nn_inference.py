@@ -83,36 +83,37 @@ def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click):
     click_model = PairedModuleClickInference(pl_module)
     trainer = pl.Trainer(gpus=1)
     print('Scoring...')
-    with torch.no_grad():
-        z_trx = trainer.predict(trx_model, valid_dl_trx)
-        z_trx = torch.cat(z_trx, dim=0)
-        print('Trx embeddings done')
+    
+    z_trx = trainer.predict(trx_model, valid_dl_trx)
+    z_trx = torch.cat(z_trx, dim=0)
+    print('Trx embeddings done')
 
-        z_click = trainer.predict(click_model, valid_dl_click)
-        z_click = torch.cat(z_click, dim=0)
-        print('Click embeddings done')
+    z_click = trainer.predict(click_model, valid_dl_click)
+    z_click = torch.cat(z_click, dim=0)
+    print('Click embeddings done')
 
-        T = z_trx.size(0)
-        C = z_click.size(0)
-        ix_t = torch.arange(T).view(-1, 1).expand(T, C).flatten()
-        ix_c = torch.arange(C).view(1, -1).expand(T, C).flatten()
+    T = z_trx.size(0)
+    C = z_click.size(0)
+    ix_t = torch.arange(T).view(-1, 1).expand(T, C).flatten()
+    ix_c = torch.arange(C).view(1, -1).expand(T, C).flatten()
 
-        z_out = []
-        batch_size = 1024
-        for i in range(0, len(ix_t), batch_size):
-            z_pairs = torch.cat([
-                z_trx[ix_t[i:i + batch_size]],
-                z_click[ix_c[i:i + batch_size]],
-            ], dim=1)
-            z_out.append(pl_module.cls(z_pairs).unsqueeze(1))
-        z_out = torch.cat(z_out, dim=0).view(T, C)
-
-        # scores for rtk='0'
-        # 0 score is maximum, z_out has only negative values
-        z_out = torch.cat([
-            torch.zeros((T, 1)),
-            z_out,
+    z_out = []
+    batch_size = 1024
+    for i in range(0, len(ix_t), batch_size):
+        z_pairs = torch.cat([
+            z_trx[ix_t[i:i + batch_size]],
+            z_click[ix_c[i:i + batch_size]],
         ], dim=1)
+        z_out.append(pl_module.cls(z_pairs).unsqueeze(1))
+    z_out = torch.cat(z_out, dim=0).view(T, C)
+
+    # scores for rtk='0'
+    # 0 score is maximum, z_out has only negative values
+    z_out = torch.cat([
+        torch.zeros((T, 1)),
+        z_out,
+    ], dim=1)
+    
     return z_out
 
 
