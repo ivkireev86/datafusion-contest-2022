@@ -2,6 +2,7 @@ import gc
 import hydra
 import pickle
 from glob import glob
+import pytorch_lightning as pl
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,7 @@ from ptls.data_load import augmentation_chain
 from ptls.data_load.augmentations.seq_len_limit import SeqLenLimit
 
 from vtb_code.data import PairedDataset, DropDuplicate
-from vtb_code.model import MLMPretrainModuleTrx, MLMPretrainModuleClick, PairedModule
+from vtb_code.model import PairedModule, PairedModuleTrxInference, PairedModuleClickInference
 from vtb_code.preprocessing import trx_types, click_types, trx_to_torch, click_to_torch
 
 
@@ -54,7 +55,7 @@ def load_data(cfg):
         shuffle=False,
         num_workers=4,
         batch_size=512,
-        persistent_workers=True,
+        persistent_workers=False,
     )
     valid_dl_click = torch.utils.data.DataLoader(
         PairedDataset(
@@ -71,38 +72,30 @@ def load_data(cfg):
         shuffle=False,
         num_workers=4,
         batch_size=512,
-        persistent_workers=True,
+        persistent_workers=False,
     )
     return uid_banks, uid_rtk, valid_dl_trx, valid_dl_click
 
 
-def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, cfg):
-    mlm_model_trx = MLMPretrainModuleTrx.load_from_checkpoint(f'{cfg.objects_path}/pretrain_trx.cpt')
-    mlm_model_click = MLMPretrainModuleClick.load_from_checkpoint(f'{cfg.objects_path}/pretrain_click.cpt')
-    pl_module = PairedModule.load_from_checkpoint(model_path,
-                                                  mlm_model_trx=mlm_model_trx,
-                                                  mlm_model_click=mlm_model_click,
-                                                  )
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    pl_module.to(device)
-    pl_module.eval()
+def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click):
+    pl_module = PairedModule.load_from_checkpoint(model_path)
+    trx_model = PairedModuleTrxInference(pl_module)
+    click_model = PairedModuleClickInference(pl_module)
+    trainer = pl.Trainer(gpus=1)
     print('Scoring...')
     with torch.no_grad():
-        z_trx = []
-        for ((x_trx, _),) in valid_dl_trx:
-            z_trx.append(pl_module.seq_encoder_trx(x_trx.to(device)))
+        z_trx = trainer.predict(trx_model, valid_dl_trx)
         z_trx = torch.cat(z_trx, dim=0)
         print('Trx embeddings done')
-        z_click = []
-        for ((x_click, _),) in valid_dl_click:
-            z_click.append(pl_module.seq_encoder_click(x_click.to(device)))
+
+        z_click = trainer.predict(click_model, valid_dl_click)
         z_click = torch.cat(z_click, dim=0)
         print('Click embeddings done')
 
         T = z_trx.size(0)
         C = z_click.size(0)
-        ix_t = torch.arange(T, device=device).view(-1, 1).expand(T, C).flatten()
-        ix_c = torch.arange(C, device=device).view(1, -1).expand(T, C).flatten()
+        ix_t = torch.arange(T).view(-1, 1).expand(T, C).flatten()
+        ix_c = torch.arange(C).view(1, -1).expand(T, C).flatten()
 
         z_out = []
         batch_size = 1024
@@ -117,7 +110,7 @@ def get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, c
         # scores for rtk='0'
         # 0 score is maximum, z_out has only negative values
         z_out = torch.cat([
-            torch.zeros((T, 1), device=device),
+            torch.zeros((T, 1)),
             z_out,
         ], dim=1)
     return z_out
@@ -132,7 +125,7 @@ def main(cfg):
     if len(model_list) == 0:
         raise FileNotFoundError('No models found')
     for i, model_path in enumerate(model_list):
-        z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click, cfg)
+        z_out = get_pairvise_distance_with_model(model_path, valid_dl_trx, valid_dl_click)
         res.append(z_out)
         print(f'Cross scores done [{i}: "{model_path}"]')
 
