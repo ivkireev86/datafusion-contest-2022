@@ -26,7 +26,7 @@ def main(cfg):
     pre /= cnt
     r1 = 2 * mrr * pre / (mrr + pre)
 
-    print(f'Fold {valid_fold_id} results: r1={r1:.4f}, mrr={mrr:.4f}, pre={pre:4f}. Scored {cnt} lines')
+    print(f'Fold {valid_fold_id} results: r1={r1:.4f}, mrr={mrr:.4f}, pre={pre:.4f}. Scored {cnt} lines')
 
 
 if __name__ == '__main__':
