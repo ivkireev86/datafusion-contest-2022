@@ -5,7 +5,7 @@ valid_fold_id: ???
 
 ensemble_size: 5
 data_path: ../data
-objects_path: ../objects
+objects_path: "../objects_${valid_fold_id}"
 
 model_config:
     common_trx_size: 256
