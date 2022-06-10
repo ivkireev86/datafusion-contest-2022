@@ -1,3 +1,5 @@
+![](vtb_pic.jpeg)
+
 # Data Fusion Contest 2022. 1-st place on the Matching Task.
 
 [Link to competition](https://ods.ai/competitions/data-fusion2022-main-challenge)
