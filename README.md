@@ -11,6 +11,23 @@ Our solution acheived **1-st** place on the private leaderboard.
 ## Validation
 We split train data at 6 folds. So we have about 3000 pairs in fold. This is similar as contest validation and test set.
 
+Final validation quality (with ensemble):
+```
+     mean   [values by folds]
+r1:  0.5425 [0.549 , 0.533 , 0.546 , 0.541 , 0.541 , 0.545 ]	
+mrr: 0.2028 [0.202 , 0.204 , 0.204 , 0.202 , 0.202 , 0.203 ]
+pre: 0.2952 [0.296 , 0.295 , 0.297 , 0.294 , 0.294 , 0.295 ]	
+```
+
+Final validation quality (with single model):
+```
+     mean   [values by folds]
+r1:  0.5025 [0.514 , 0.497 , 0.506 , 0.496 , 0.498 , 0.504 ]	
+mrr: 0.1947 [0.194 , 0.198 , 0.194 , 0.194 , 0.193 , 0.195 ]
+pre: 0.2808 [0.282 , 0.283 , 0.281 , 0.279 , 0.279 , 0.281 ]
+```
+
+
 ## Model
 
 This is neural network based solution. We use [pytorch-lifestream](https://github.com/dllllb/pytorch-lifestream)
